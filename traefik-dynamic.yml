@@ -1,0 +1,36 @@
+http:
+  routers:
+    frontend-router:
+      rule: "PathPrefix(`/`) && !PathPrefix(`/api`) && !PathPrefix(`/socket.io`)"
+      service: "frontend-service"
+      entryPoints:
+        - web
+    api-router:
+      rule: "PathPrefix(`/api`)"
+      service: "api-service"
+      entryPoints:
+        - web
+    socket-router:
+      rule: "PathPrefix(`/socket.io`)"
+      service: "socket-service"
+      entryPoints:
+        - web
+
+  services:
+    frontend-service:
+      loadBalancer:
+        servers:
+          - url: "http://host.docker.internal:4200"
+    api-service:
+      loadBalancer:
+        servers:
+          - url: "http://host.docker.internal:3333/api"
+    socket-service:
+      loadBalancer:
+        servers:
+          - url: "http://host.docker.internal:3333/socket.io"
+  middlewares:
+    remove-cache-control:
+      headers:
+        customRequestHeaders:
+          Cache-Control: ""

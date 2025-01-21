@@ -1,0 +1,12 @@
+api:
+  dashboard: true
+  insecure: true # Optional: Use only in a development environment
+entryPoints:
+  web:
+    address: ":80" # HTTP entry point
+  dashboard:
+    address: ":8081"
+
+providers:
+  file:
+    filename: "/dynamic.yaml"
