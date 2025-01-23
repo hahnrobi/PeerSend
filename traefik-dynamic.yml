@@ -1,7 +1,7 @@
 http:
   routers:
     frontend-router:
-      rule: "PathPrefix(`/`) && !PathPrefix(`/api`) && !PathPrefix(`/socket.io`)"
+      rule: "PathPrefix(`/`) && !PathPrefix(`/api`) && !PathPrefix(`/socket.io`) && !PathPrefix(`/peerjs`)"
       service: "frontend-service"
       entryPoints:
         - web
@@ -13,6 +13,11 @@ http:
     socket-router:
       rule: "PathPrefix(`/socket.io`)"
       service: "socket-service"
+      entryPoints:
+        - web
+    peerjs-router:
+      rule: "PathPrefix(`/peerjs`)"
+      service: "peerjs-service"
       entryPoints:
         - web
 
@@ -29,6 +34,10 @@ http:
       loadBalancer:
         servers:
           - url: "http://host.docker.internal:3333/socket.io"
+    peerjs-service:
+      loadBalancer:
+        servers:
+          - url: "http://host.docker.internal:3333/peerjs"
   middlewares:
     remove-cache-control:
       headers:

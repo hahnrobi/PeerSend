@@ -1,16 +1,36 @@
 <script setup lang="ts">
 import { RouterLink, RouterView } from 'vue-router';
 import { useSocketIo } from '@/stores/socket-io';
+import { onBeforeUnmount } from 'vue';
+import { useColorMode } from '@vueuse/core';
+import { Icon } from '@iconify/vue';
+import { Button } from '@/components/ui/button';
 const io = useSocketIo();
 io.connect();
+onBeforeUnmount(() => io.disconnect());
+const mode = useColorMode();
+
+const toggleTheme = () => {
+  mode.value === 'dark' ? (mode.value = 'light') : (mode.value = 'dark');
+};
 </script>
 
 <template>
   <header>
     <nav>
       <RouterLink to="/">Home</RouterLink>
-      <RouterLink to="/about">About</RouterLink>
     </nav>
+    <Button variant="outline" @click="toggleTheme">
+      <Icon
+        v-if="mode === 'dark'"
+        icon="radix-icons:moon"
+      />
+      <Icon
+        v-if="mode === 'light'"
+        icon="radix-icons:sun"
+      />
+      <span class="sr-only">Toggle theme</span>
+    </Button>
   </header>
   <RouterView />
 </template>

@@ -12,6 +12,7 @@ export default defineConfig({
   server: {
     port: 4200,
     host: '0.0.0.0',
+    allowedHosts: ['peersendtest.xenon.iva.hu'],
   },
   preview: {
     port: 4300,
