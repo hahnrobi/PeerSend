@@ -1,0 +1,29 @@
+name: 🚀 Deploy
+
+on:
+  workflow_dispatch:  # Allow manual triggering of the workflow
+
+jobs:
+  tag_and_redeploy:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      # Log in to Docker Harbor registry
+      - name: 🐳 Log in to Harbor Docker registry
+        run: echo "${{ secrets.HARBOR_PASSWORD }}" | docker login ${{ secrets.HARBOR_URL }} -u '${{ secrets.HARBOR_USERNAME }}' --password-stdin
+
+      # Tag the Docker image as latest
+      - name: 🏷️ Tag Docker image as latest
+        run: |
+          docker pull ${{ secrets.HARBOR_URL }}/${{ secrets.IMAGE_NAME }}:${{ github.sha }}
+          docker tag ${{ secrets.HARBOR_URL }}/${{ secrets.IMAGE_NAME }}:${{ github.sha }} ${{ secrets.HARBOR_URL }}/${{ secrets.IMAGE_NAME }}:latest
+          docker push ${{ secrets.HARBOR_URL }}/${{ secrets.IMAGE_NAME }}:latest
+      - name: ⏳ Wait for the new tag to refresh
+        run: sleep 10s
+        shell: bash
+      # Call the webhook for redeploying the application
+      - name: 🔄 Call redeploy webhook
+        run: |
+          curl -X POST -H "Content-Type: application/json" \
+            -d '{"tag": "latest"}' \
+            ${{ secrets.REDEPLOY_WEBHOOK_URL }}
