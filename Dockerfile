@@ -8,6 +8,7 @@ RUN npm install -g pnpm vite
 WORKDIR /app
 # Copy the rest of the application source code
 COPY . .
+COPY ./.env.production ./.env
 COPY update-version.sh ./
 ARG TAG_VERSION=v0.0.0
 ENV TAG_VERSION=$TAG_VERSION
@@ -19,7 +20,7 @@ RUN sh /app/update-version.sh $TAG_VERSION
 RUN pnpm install --frozen-lockfile --prod false
 
 # Build the project
-RUN pnpm vite build -m production --config apps/frontend/vite.config.mts
+RUN NODE_ENV=production pnpm nx build frontend --mode production
 RUN export NX_DAEMON=false; pnpm nx build api
 
 # Stage 2: Create the final container with the dist and node_modules folders

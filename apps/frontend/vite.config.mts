@@ -1,5 +1,5 @@
 /// <reference types='vitest' />
-import { defineConfig, loadEnv } from 'vite';
+import { defineConfig } from 'vite';
 import { fileURLToPath, URL } from 'node:url';
 import vue from '@vitejs/plugin-vue';
 import { nxViteTsPaths } from '@nx/vite/plugins/nx-tsconfig-paths.plugin';
@@ -17,7 +17,6 @@ export default defineConfig(({mode}) => {
   server: {
     port: 4200,
     host: '0.0.0.0',
-    allowedHosts: ['peersendtest.xenon.iva.hu'],
   },
   preview: {
     port: 4300,
@@ -25,7 +24,6 @@ export default defineConfig(({mode}) => {
   },
   define: {
     'import.meta.env.PACKAGE_VERSION': JSON.stringify(packageJson.version),
-    __APP_VERSION__: JSON.stringify(process.env.npm_package_version),
   },
   plugins: [
     vue(),
@@ -43,10 +41,6 @@ export default defineConfig(({mode}) => {
       ]
     })
   ],
-  // Uncomment this if you are using workers.
-  // worker: {
-  //  plugins: [ nxViteTsPaths() ],
-  // },
   build: {
     outDir: '../../dist/apps/frontend',
     emptyOutDir: true,
