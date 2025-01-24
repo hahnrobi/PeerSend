@@ -16,7 +16,7 @@ RUN chmod +x /app/update-version.sh
 RUN sh /app/update-version.sh $TAG_VERSION
 
 # Install dependencies using pnpm
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile --prod false
 
 # Build the project
 RUN pnpm vite build -m production --config apps/frontend/vite.config.mts

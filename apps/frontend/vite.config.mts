@@ -9,8 +9,6 @@ import packageJson from '../../package.json';
 import { resolve } from 'path';
 import { viteStaticCopy } from 'vite-plugin-static-copy';
 
-
-
 export default defineConfig(({mode}) => {
   return {
   root: __dirname,
