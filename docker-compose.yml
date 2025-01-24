@@ -1,8 +1,6 @@
 services:
     traefik:
         image: traefik:v3.1
-        extra_hosts:
-            - "host.docker.internal:host-gateway"
         command:
             - '--log.level=DEBUG'
         ports:

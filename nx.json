@@ -27,7 +27,8 @@
         "serveTargetName": "serve",
         "previewTargetName": "preview",
         "serveStaticTargetName": "serve-static",
-        "typecheckTargetName": "typecheck"
+        "typecheckTargetName": "typecheck",
+        "mode": "production"
       }
     },
     {

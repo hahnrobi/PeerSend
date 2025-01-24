@@ -34,7 +34,7 @@ const fileOffers = computed(() => files.value?.map(makeFileOffer));
         class="flex gap-2"
       >
         <FileDetails :file-offer="offer" />
-        <Button variant="destructive" @click="io.unofferFile(offer)">Unoffer</Button>
+        <Button variant="destructive" @click="io.unOfferFile(offer)">Unoffer</Button>
       </div>
       <div v-if="fileOffers.length === 0" class="text-muted-foreground">No files offered. Pick some files.</div>
     </CardContent>

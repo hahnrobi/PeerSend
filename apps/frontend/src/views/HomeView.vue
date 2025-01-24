@@ -11,15 +11,21 @@
     </div>
     <div class="mt-10 flex flex-col gap-10 max-w-[400px] mx-auto">
       <Button class="text-xl" @click="enterRandomRoom()"> Create Room </Button>
-      <div>or enter with room ID</div>
-      <div
+      <Separator label="or enter with room ID" />
+      <form
         class="flex w-full justify-center mx-auto max-w-sm items-center gap-1.5 text-2xl"
+        v-on:submit.prevent="enterRoom"
       >
-        <Input type="text" placeholder="Room ID" v-model="roomId" />
+        <Input
+          type="text"
+          placeholder="Room ID"
+          v-model="roomId"
+          class="bg-background"
+        />
         <Button type="submit" class="text-lg" @click="enterRoom">
           Enter
         </Button>
-      </div>
+      </form>
     </div>
   </main>
 </template>
@@ -28,6 +34,7 @@
 import UsernameInput from '@/components/UsernameInput.vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Separator } from '@/components/ui/separator';
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { generateUsername } from 'unique-username-generator';

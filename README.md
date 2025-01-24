@@ -11,15 +11,15 @@
 To run the dev server for your app, use:
 
 ```sh
-npx nx serve peersend-frontend
-```
-
-To create a production bundle:
+docker compose up -d
+````
 
 ```sh
-npx nx build peersend-frontend
+npx nx serve frontend
 ```
-
+```sh
+npx nx serve api
+```
 To see all available targets to run for a project, run:
 
 ```sh
