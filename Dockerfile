@@ -19,7 +19,7 @@ RUN sh /app/update-version.sh $TAG_VERSION
 RUN pnpm install --frozen-lockfile
 
 # Build the project
-RUN cd apps/frontend && npx vite build -m production
+RUN cd apps/frontend && pnpm vite build -m production
 RUN export NX_DAEMON=false; pnpm nx build api
 
 # Stage 2: Create the final container with the dist and node_modules folders
