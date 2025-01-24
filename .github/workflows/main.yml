@@ -1,0 +1,43 @@
+name: 🐋 Build and Publish Docker Image
+
+on:
+  push:
+    tags:
+      - 'v*'  # Optional: Only trigger on version tags
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    # Checkout the repository
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    # Log in to Docker Harbor registry
+    - name: Log in to Harbor Docker registry
+      run: echo "${{ secrets.HARBOR_PASSWORD }}" | docker login ${{ secrets.HARBOR_URL }} -u '${{ secrets.HARBOR_USERNAME }}' --password-stdin
+
+    # Build the Docker image
+    - name: Build Docker image
+      run: |
+        docker build --build-arg TAG_VERSION=${{ github.ref_name}} -t '${{ secrets.HARBOR_URL }}/${{ secrets.IMAGE_NAME }}:${{ github.sha }}' .
+
+    # Tag the Docker image with a version tag (if pushing a tag)
+    - name: Tag Docker image
+      if: startsWith(github.ref, 'refs/tags/')
+      run: |
+        IMAGE_TAG=${{ github.ref_name}}
+        docker tag ${{ secrets.HARBOR_URL }}/${{ secrets.IMAGE_NAME }}:${{ github.sha }} ${{ secrets.HARBOR_URL }}/${{ secrets.IMAGE_NAME }}:${IMAGE_TAG}
+
+    # Push the Docker image to Harbor
+    - name: Push Docker image
+      run: |
+        docker push ${{ secrets.HARBOR_URL }}/${{ secrets.IMAGE_NAME }}:${{ github.sha }}
+        if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+          IMAGE_TAG=${{ github.ref_name}}
+          docker push ${{ secrets.HARBOR_URL }}/${{ secrets.IMAGE_NAME }}:${IMAGE_TAG}
+        fi
+        if [[ "${is_latest}" == 'true' ]]; then
+          docker push ${{ secrets.HARBOR_URL }}/{{ secrets.IMAGE_NAME }}:latest
+        fi
