@@ -5,20 +5,25 @@ import {
   SocketMessageType,
 } from '../../../libs/communication/src/lib/socket-messages';
 
-const sockets: Record<
-  string,
-  Socket<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap, any>
-> = {};
+interface SocketData {
+  peerId?: string;
+  room?: string;
+}
 
-export const addSocket = (
-  socket: Socket<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap, any>
-) => {
+type AppSocket = Socket<
+  ServerReceivedMessages,
+  ClientReceivedMessages,
+  DefaultEventsMap,
+  SocketData
+>;
+
+const sockets: Record<string, AppSocket> = {};
+
+export const addSocket = (socket: AppSocket) => {
   sockets[socket.id] = socket;
 };
 
-export const removeSocket = (
-  socket: Socket<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap, any>
-) => {
+export const removeSocket = (socket: AppSocket) => {
   delete sockets[socket.id];
 };
 
@@ -26,75 +31,65 @@ export const getSocket = (id: string) => {
   return sockets[id];
 };
 
-const getUserRooms = (socket: Socket) => {
-  const userRooms = Array.from(socket.rooms);
-  return userRooms.filter((room) => room !== socket.id);
-};
-const sendUserLeftMessagesToRooms = (socket: Socket) => {
-  const peerId = socket.data.peerId;
-  const userRooms = getUserRooms(socket);
-  console.log('User rooms', userRooms);
-  userRooms.forEach((room) => {
-    socket.to(room).emit(SocketMessageType.SV_USER_LEFT, peerId);
-  });
-};
-const sendUserLeftMessageToRoom = (socket: Socket, room: string) => {
-  const userId = socket.id;
+const leaveCurrentRoom = (socket: AppSocket) => {
+  const room = socket.data.room;
+  if (!room) {
+    return;
+  }
+  socket.leave(room);
   socket.to(room).emit(SocketMessageType.SV_USER_LEFT, socket.data.peerId);
-};
-const sendUserJoinedMessagesToRoom = (socket: Socket, room: string) => {
-  socket.to(room).emit(SocketMessageType.SV_USER_JOINED, socket.data.peerId);
+  socket.data.room = undefined;
 };
 
-export const socketHandler = (
-  io: Server,
-  socket: Socket<
-    ServerReceivedMessages,
-    ClientReceivedMessages,
-    DefaultEventsMap,
-    any
-  >
-) => {
+export const socketHandler = (io: Server, socket: AppSocket) => {
   console.log('Socket connected', socket.id);
   addSocket(socket);
+
   socket.on('disconnecting', () => {
-    sendUserLeftMessagesToRooms(socket);
+    leaveCurrentRoom(socket);
   });
   socket.on('disconnect', () => {
     console.log('Socket disconnected', socket.id);
     removeSocket(socket);
   });
 
-  socket.on(SocketMessageType.CL_JOIN_ROOM, ({room, peerId}: any) => {
+  socket.on(SocketMessageType.CL_JOIN_ROOM, ({ room, peerId }, ack) => {
     console.log('User joined room', peerId, room);
+    // A socket only ever belongs to one room at a time (fresh join, rejoin
+    // after reconnect, or switching rooms) - always leave the previous one
+    // first so membership never gets stale or duplicated.
+    if (socket.data.room && socket.data.room !== room) {
+      leaveCurrentRoom(socket);
+    }
+    socket.data.peerId = peerId;
+    socket.data.room = room;
     socket.join(room);
-    socket.data = {peerId};
-    socket.emit(SocketMessageType.SV_JOIN_APPROVE, room);
-    sendUserJoinedMessagesToRoom(socket, room);
-  });
-  socket.on(SocketMessageType.CL_LEAVE_ROOM, (room: string) => {
-    console.log('User left room', socket.id, room);
-    sendUserLeftMessageToRoom(socket, room);
-    socket.leave(room);
+    socket.to(room).emit(SocketMessageType.SV_USER_JOINED, peerId);
+    ack?.(room);
   });
 
-  socket.on(SocketMessageType.CL_LIST_PEERS, () => {
-    const currentRoomId = Array.from(socket.rooms).pop();
-    console.log('Requesting peers', socket.id, currentRoomId);
-    if (!currentRoomId || currentRoomId === socket.id) {
+  socket.on(SocketMessageType.CL_LEAVE_ROOM, () => {
+    console.log('User left room', socket.id, socket.data.room);
+    leaveCurrentRoom(socket);
+  });
+
+  socket.on(SocketMessageType.CL_LIST_PEERS, (ack) => {
+    const currentRoom = socket.data.room;
+    console.log('Requesting peers', socket.id, currentRoom);
+    if (!currentRoom) {
       console.log('Not in room.', socket.id);
+      ack?.([]);
       return;
     }
-    const room = io.sockets.adapter.rooms.get(currentRoomId);
+    const room = io.sockets.adapter.rooms.get(currentRoom);
     if (!room) {
       console.log('Room not found.', socket.id);
+      ack?.([]);
       return;
     }
-    const ids = Array.from(room);
-    if(!ids?.length) {
-      return;
-    }
-    const peerIds = ids.map((id) => io.sockets.sockets.get(id)?.data?.peerId);
-    socket.emit(SocketMessageType.SV_LIST_PEERS, peerIds);
+    const peerIds = Array.from(room)
+      .map((id) => io.sockets.sockets.get(id)?.data?.peerId)
+      .filter((peerId): peerId is string => !!peerId);
+    ack?.(peerIds);
   });
 };
