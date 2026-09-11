@@ -42,7 +42,7 @@ export const useSocketIo = defineStore('socketStore', () => {
   const peer = ref<Peer | null>(null);
   const peers = ref<Record<string, PeerInfo>>({});
   const peerConnections = ref<
-    Record<string, { data: any; meta: DataConnection }>
+    Record<string, Partial<{ data: any; meta: DataConnection }>>
   >({});
   const roomId = ref<string | null>(null);
   const isConnected = ref(false);
@@ -101,7 +101,40 @@ export const useSocketIo = defineStore('socketStore', () => {
         console.log('[IO] Peers', newPeers);
         cleanupPeer(userId);
       });
+
+      // The socket.io client reconnects automatically after any transport
+      // drop (network blip, backgrounded tab, sleep). A reconnect gets a
+      // brand new socket id, so the server treats it as having left the
+      // room. Without rejoining explicitly here, the user would silently
+      // stop appearing in - and seeing - the room for everyone, even
+      // though the UI still thinks it's connected.
+      let hasConnectedBefore = false;
+      socket.value.on('connect', () => {
+        if (hasConnectedBefore && roomId.value && peer.value) {
+          void rejoinRoom(roomId.value);
+        }
+        hasConnectedBefore = true;
+      });
     });
+  };
+
+  const rejoinRoom = async (room: string): Promise<void> => {
+    const p = peer.value;
+    if (!p) {
+      return;
+    }
+    console.log('[IO] Rejoining room after reconnect', room);
+    await _joinRoom(room, p.id);
+    const remotePeerIds = ((await listRoomPeers()) || []).filter(
+      (peerIdToCheck) => peerIdToCheck !== p.id
+    );
+    mergePeerInfos(remotePeerIds.map((id) => ({ id })));
+    const newPeerIds = remotePeerIds.filter(
+      (peerId) => !(peerId in peerConnections.value)
+    );
+    if (newPeerIds.length > 0) {
+      await Promise.all(newPeerIds.map((peerId) => connectPeer(peerId)));
+    }
   };
 
   const disconnect = () => {
@@ -116,9 +149,8 @@ export const useSocketIo = defineStore('socketStore', () => {
     if (!socket.value) {
       throw new Error('Socket not connected');
     }
-    const room = roomId.value;
-    console.log('Leaving room', room);
-    socket.value.emit(SocketMessageType.CL_LEAVE_ROOM, room);
+    console.log('Leaving room', roomId.value);
+    socket.value.emit(SocketMessageType.CL_LEAVE_ROOM);
     disconnectPeerConnections();
     peer.value?.destroy();
     offeredFiles.value = [];
@@ -190,15 +222,11 @@ export const useSocketIo = defineStore('socketStore', () => {
     const _peers = ((await listRoomPeers()) || []).filter(
       (peerIdToCheck) => peerIdToCheck !== peerId
     );
-    const _peersInfo = _peers.reduce(
-      (acc, id) => ({ ...acc, [id]: { id } }),
-      {} as Record<string, PeerInfo>
-    );
-    peers.value = _peersInfo;
+    mergePeerInfos(_peers.map((id) => ({ id })));
     if (_peers.length > 0) {
       await Promise.all(_peers.map((peerId) => connectPeer(peerId)));
     }
-    console.log('[IO] Room peers', _peersInfo);
+    console.log('[IO] Room peers', _peers);
   };
 
   const _joinRoom = async (room: string, peerId: string): Promise<void> => {
@@ -207,8 +235,7 @@ export const useSocketIo = defineStore('socketStore', () => {
       throw new Error('Socket not connected');
     }
     return new Promise((resolve) => {
-      s.emit(SocketMessageType.CL_JOIN_ROOM, { room, peerId });
-      s.on(SocketMessageType.SV_JOIN_APPROVE, () => {
+      s.emit(SocketMessageType.CL_JOIN_ROOM, { room, peerId }, () => {
         resolve();
       });
     });
@@ -220,8 +247,7 @@ export const useSocketIo = defineStore('socketStore', () => {
       throw new Error('Socket not connected');
     }
     return new Promise((resolve) => {
-      s.emit(SocketMessageType.CL_LIST_PEERS);
-      s.on(SocketMessageType.SV_LIST_PEERS, (peers: string[]) => {
+      s.emit(SocketMessageType.CL_LIST_PEERS, (peers: string[]) => {
         resolve(peers);
       });
     });
@@ -284,6 +310,18 @@ export const useSocketIo = defineStore('socketStore', () => {
       ...pc,
       [peerId]: existingPeerConnections,
     };
+
+    // Without this, a dead WebRTC connection (network drop, peer closing
+    // the tab) stays in peerConnections.value forever. rejoinRoom() uses
+    // presence in that map to decide which peers it can skip
+    // reconnectPeer() for, so a stale entry would leave that peer looking
+    // connected while it's silently unreachable until a full page reload.
+    const forgetConnection = () => removePeerConnection(peerId, communicationType);
+    connection.on('close', forgetConnection);
+    connection.on('error', (err) => {
+      console.warn('[PEER] Connection error', peerId, communicationType, err);
+      forgetConnection();
+    });
 
     if (communicationType === 'data') {
       connection.on('data', (data: any) => {
@@ -411,6 +449,23 @@ export const useSocketIo = defineStore('socketStore', () => {
         console.log('[PEER] Meta connection received data', data);
       });
       checkPeerInfoAndRequest(peerId);
+    }
+  };
+  const removePeerConnection = (
+    peerId: string,
+    communicationType: 'data' | 'meta'
+  ): void => {
+    const pc = peerConnections.value || {};
+    const existing = pc[peerId];
+    if (!existing) {
+      return;
+    }
+    const { [communicationType]: _removed, ...rest } = existing;
+    if (Object.keys(rest).length === 0) {
+      const { [peerId]: _peer, ...others } = pc;
+      peerConnections.value = others;
+    } else {
+      peerConnections.value = { ...pc, [peerId]: rest };
     }
   };
   const getPeerConnection = (
